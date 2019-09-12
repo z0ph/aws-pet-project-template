@@ -1,6 +1,6 @@
-# Pet Project Template
+# AWS Pet Project Template
 
-This repository contain tooling for creation lighting fast AWS Pet Projects.
+This repository contain tooling for lighting fast creation of AWS Pet Projects.
 
 ## How to use it
 

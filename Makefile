@@ -1,7 +1,13 @@
 .DEFAULT_GOAL := help
+.PHONY: help package deploy layer clean clean-layer deps cleaning
+
+PROJECT ?= PROJECT_NAME
+S3_BUCKET ?= ${PROJECT}-artifacts
+AWS_REGION ?= eu-west-1
+ENV ?= dev
 
 help:
-	@echo "My Super Porject"
+	@echo "${PROJECT}"
 	@echo ""
 	@echo "	layer - prepare the layer"
 	@echo "	package - prepare the package"
@@ -9,11 +15,6 @@ help:
 	@echo "	clean - clean the build folder"
 	@echo "	clean-layer - clean the layer folder"
 	@echo "	cleaning - clean build and layer folders"
-
-PROJECT ?= PROJECT_NAME
-S3_BUCKET ?= ${PROJECT}-artifacts
-AWS_REGION ?= eu-west-1
-ENV ?= dev
 
 deps:
   @hash $(TERRAFORM_BIN) > /dev/null 2>&1 || \
