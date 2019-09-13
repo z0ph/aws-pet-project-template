@@ -2,7 +2,7 @@
 .PHONY: help tf-plan tf-package tf-deploy cfn-package cfn-deploy layer clean clean-layer cleaning artifacts
 
 ################ Project #######################
-PROJECT ?= my-excellent-project-yolo
+PROJECT ?= my-yolo-project-123
 DESCRIPTION ?= My new AWS Pet Project
 ################################################
 
@@ -16,10 +16,11 @@ help:
 	@echo "${PROJECT}"
 	@echo "${DESCRIPTION}"
 	@echo ""
-	@echo "	artifacts - create requirements (S3 storage)"
+	@echo "	artifacts - create required S3 bucket for artifacts storage"
 	@echo "	tf-package - prepare the package for Terraform"
-	@echo "	tf-plan - validate and plan (dryrun) IaC using Terraform"
+	@echo "	tf-plan - init, validate and plan (dryrun) IaC using Terraform"
 	@echo "	tf-deploy - deploy the IaC using Terraform"
+	@echo "	tf-destroy - delete all previously created infrastructure using Terraform"
 	@echo "	cfn-package - prepare the package for CloudFormation"
 	@echo "	cfn-deploy - deploy the IaC using CloudFormation"
 	@echo "	cfn-layer - prepare the layer for CloudFormation"
@@ -27,19 +28,15 @@ help:
 	@echo "	clean-layer - clean the layer folder"
 	@echo "	cleaning - clean build and layer folders"
 
+
 ################ Artifacts #####################
 artifacts:
 	@echo "Creation of artifacts bucket"
-	aws s3 mb s3://$(S3_BUCKET)
-	aws s3api put-bucket-encryption --bucket $(S3_BUCKET) \
+	@aws s3 mb s3://$(S3_BUCKET)
+	@aws s3api put-bucket-encryption --bucket $(S3_BUCKET) \
 		--server-side-encryption-configuration \
 		'{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
-
-	@echo "Creation of Terraform artifacts bucket"
-	aws s3 mb s3://zoph-terraform-artifacts
-	aws s3api put-bucket-encryption --bucket zoph-terraform-artifacts \
-		--server-side-encryption-configuration \
-		'{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
+	@aws s3api put-bucket-versioning --bucket $(S3_BUCKET) --versioning-configuration Status=Enabled
 ################################################
 
 ################ Terraform #####################
@@ -47,12 +44,18 @@ tf-package: clean
 	@echo "Consolidating python code in ./build"
 	mkdir -p build
 	cp -R ./python/*.py ./build/
+
 	@echo "zipping python code"
 	zip -j ./tf/function.zip ./build/*
 
 tf-plan:
-	@terraform init ./tf/
+	@terraform init \
+		-backend-config="bucket=$(S3_BUCKET)" \
+		-backend-config="key=$(PROJECT)/terraform.tfstate" \
+		./tf/
+
 	@terraform validate ./tf/
+
 	terraform plan \
 		-var="env=$(ENV)" \
 		-var="project=$(PROJECT)" \
@@ -63,11 +66,15 @@ tf-plan:
 		-out="$(PROJECT)-$(ENV)-$(AWS_REGION).tfplan" \
 		./tf/
 
-
 tf-deploy:
 	terraform apply \
 		-state="$(PROJECT)-$(ENV)-$(AWS_REGION).tfstate" \
 			$(PROJECT)-$(ENV)-$(AWS_REGION).tfplan
+
+tf-destroy:
+	@read -p "Are you sure that you want to destroy: '$(PROJECT)-$(ENV)-$(AWS_REGION)'? [yes/N]: " sure && [ $${sure:-N} = 'yes' ]
+	terraform destroy ./tf/
+
 ################################################
 
 ################ CloudFormation ################

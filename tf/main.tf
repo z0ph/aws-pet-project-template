@@ -4,8 +4,6 @@ provider "aws" {
 
 terraform {
   backend "s3" {
-    bucket = "zoph-terraform-artifacts"
-    key    = "tfstate"
     region = "eu-west-1"
   }
 }
