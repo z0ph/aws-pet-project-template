@@ -1,34 +1,80 @@
 .DEFAULT_GOAL := help
-.PHONY: help package deploy layer clean clean-layer deps cleaning
+.PHONY: help tf-plan tf-package tf-deploy cfn-package cfn-deploy layer clean clean-layer cleaning artifacts
 
-PROJECT ?= PROJECT_NAME
+################ Project #######################
+PROJECT ?= my-excellent-project-yolo
+DESCRIPTION ?= My new AWS Pet Project
+################################################
+
+################ Config ########################
 S3_BUCKET ?= ${PROJECT}-artifacts
 AWS_REGION ?= eu-west-1
-ENV ?= dev
+ENV ?= development
+################################################
 
 help:
 	@echo "${PROJECT}"
+	@echo "${DESCRIPTION}"
 	@echo ""
-	@echo "	layer - prepare the layer"
-	@echo "	package - prepare the package"
-	@echo "	deploy - deploy the lambda function"
+	@echo "	artifacts - create requirements (S3 storage)"
+	@echo "	tf-package - prepare the package for Terraform"
+	@echo "	tf-plan - validate and plan (dryrun) IaC using Terraform"
+	@echo "	tf-deploy - deploy the IaC using Terraform"
+	@echo "	cfn-package - prepare the package for CloudFormation"
+	@echo "	cfn-deploy - deploy the IaC using CloudFormation"
+	@echo "	cfn-layer - prepare the layer for CloudFormation"
 	@echo "	clean - clean the build folder"
 	@echo "	clean-layer - clean the layer folder"
 	@echo "	cleaning - clean build and layer folders"
 
-deps:
-  @hash $(TERRAFORM_BIN) > /dev/null 2>&1 || \
-    (echo "Install terraform to continue"; exit 1)
-  @test -n "$(AWS_ACCESS_KEY_ID)" || \
-    (echo "AWS_ACCESS_KEY_ID env not set"; exit 1)
-  @test -n "$(AWS_SECRET_ACCESS_KEY)" || \
-    (echo "AWS_SECRET_ACCESS_KEY env not set"; exit 1)
+################ Artifacts #####################
+artifacts:
+	@echo "Creation of artifacts bucket"
+	aws s3 mb s3://$(S3_BUCKET)
+	aws s3api put-bucket-encryption --bucket $(S3_BUCKET) \
+		--server-side-encryption-configuration \
+		'{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
 
-package: clean
+	@echo "Creation of Terraform artifacts bucket"
+	aws s3 mb s3://zoph-terraform-artifacts
+	aws s3api put-bucket-encryption --bucket zoph-terraform-artifacts \
+		--server-side-encryption-configuration \
+		'{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
+################################################
+
+################ Terraform #####################
+tf-package: clean
 	@echo "Consolidating python code in ./build"
 	mkdir -p build
-	cp -R *.py ./build/
+	cp -R ./python/*.py ./build/
+	@echo "zipping python code"
+	zip -j ./tf/function.zip ./build/*
 
+tf-plan:
+	@terraform init ./tf/
+	@terraform validate ./tf/
+	terraform plan \
+		-var="env=$(ENV)" \
+		-var="project=$(PROJECT)" \
+		-var="description=$(DESCRIPTION)" \
+		-var="aws_region=$(AWS_REGION)" \
+		-var="artifacts_bucket=$(S3_BUCKET)" \
+		-state="$(PROJECT)-$(ENV)-$(AWS_REGION).tfstate" \
+		-out="$(PROJECT)-$(ENV)-$(AWS_REGION).tfplan" \
+		./tf/
+
+
+tf-deploy:
+	terraform apply \
+		-state="$(PROJECT)-$(ENV)-$(AWS_REGION).tfstate" \
+			$(PROJECT)-$(ENV)-$(AWS_REGION).tfplan
+################################################
+
+################ CloudFormation ################
+cfn-package: clean
+	@echo "Consolidating python code in ./build"
+	mkdir -p build
+	cp -R ./python/*.py ./build/
 	@echo "zipping python code, uploading to S3 bucket, and transforming template"
 	aws cloudformation package \
 			--template-file sam.yml \
@@ -38,12 +84,15 @@ package: clean
 	@echo "Copying updated cloud template to S3 bucket"
 	aws s3 cp build/template-lambda.yml 's3://${S3_BUCKET}/template/template-lambda.yml'
 
-deploy:
+cfn-deploy:
 	aws cloudformation deploy \
 			--template-file build/template-lambda.yml \
 			--region ${AWS_REGION} \
 			--stack-name "${PROJECT}-${ENV}" \
-			--parameter-overrides ENV=${ENV} \
+			--parameter-overrides \
+				env=${ENV} \
+				project=${PROJECT} \
+				description=${DESCRIPTION} \
 			--capabilities CAPABILITY_IAM \
 			--no-fail-on-empty-changeset
 
@@ -52,7 +101,9 @@ layer: clean-layer
 			--isolated \
 			--disable-pip-version-check \
 			-Ur requirements.txt -t ./layer/
+################################################
 
+################ Cleaning ######################
 clean-layer:
 	@rm -fr layer/
 	@rm -fr dist/
@@ -75,6 +126,10 @@ clean:
 	@rm -fr site/
 	@rm -fr .eggs/
 	@rm -fr .tox/
+	@rm -fr *.tfstate
+	@rm -fr *.tfplan
+	@rm -fr function.zip
+	@rm -fr .tf/function.zip
 	@find . -name '*.egg-info' -exec rm -fr {} +
 	@find . -name '.DS_Store' -exec rm -fr {} +
 	@find . -name '*.egg' -exec rm -f {} +
@@ -84,3 +139,4 @@ clean:
 	@find . -name '__pycache__' -exec rm -fr {} +
 
 cleaning: clean clean-layer
+################################################

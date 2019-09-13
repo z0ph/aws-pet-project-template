@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
-Description: Provision the AWS Lambda function
+Description: Provision the magic serverless infrastructure
 ###############################################################
 Parameters:
 ###############################################################
@@ -13,14 +13,19 @@ Parameters:
     Type: String
     Default: empty-project-name
     Description: Project Name
+  
+  description:
+    Type: String
+    Default: empty-project-description
+    Description: Project Description
 ###############################################################
 Resources:
 ###############################################################
-  InstanceWatcherFunction:
+  LambdaFunction:
     Type: 'AWS::Serverless::Function'
     Properties:
       FunctionName: !Sub ${project}-${env}
-      Description: Monitoring Running EC2 Instances
+      Description: !Sub ${description}
       Handler: handlers.main
       Runtime: python3.7
       CodeUri: ./build
@@ -40,14 +45,14 @@ Resources:
               - ses:SendEmail
               - iam:GetRole
               - iam:ListAccountAliases
-              Resource: '*'
+              Resource: 'least_privilege_please'
       Events:
         Timer:
           Type: Schedule
           Properties:
             Schedule: rate(1 day)
       Tags:
-        Project: instance-watcher
+        Project: !Sub ${project}
 
   boto3layer:
     Type: 'AWS::Serverless::LayerVersion'

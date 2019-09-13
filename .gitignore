@@ -15,6 +15,12 @@ layer/
 build/
 dirty.py
 setup.cfg
+function.zip
+
+# Terraform
+*.tfplan
+*.tfstate*
+.terraform
 
 # Thumbnails
 ._*
