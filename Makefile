@@ -17,9 +17,11 @@ help:
 	@echo "${DESCRIPTION}"
 	@echo ""
 	@echo "	artifacts - create required S3 bucket for artifacts storage"
+	@echo "	tf-init - init Terraform IaC"
+	@echo "	tf-validate - validate IaC using Terraform"
 	@echo "	tf-package - prepare the package for Terraform"
-	@echo "	tf-plan - init, validate and plan (dryrun) IaC using Terraform"
-	@echo "	tf-deploy - deploy the IaC using Terraform"
+	@echo "	tf-plan - plan (dryrun) IaC using Terraform"
+	@echo "	tf-apply - deploy the IaC using Terraform"
 	@echo "	tf-destroy - delete all previously created infrastructure using Terraform"
 	@echo "	cfn-package - prepare the package for CloudFormation"
 	@echo "	cfn-deploy - deploy the IaC using CloudFormation"
@@ -48,32 +50,34 @@ tf-package: clean
 	@echo "zipping python code"
 	zip -j ./tf/function.zip ./build/*
 
-tf-plan:
+tf-init:
 	@terraform init \
 		-backend-config="bucket=$(S3_BUCKET)" \
 		-backend-config="key=$(PROJECT)/terraform.tfstate" \
 		./tf/
 
+tf-validate:
 	@terraform validate ./tf/
 
-	terraform plan \
+tf-plan:
+	@terraform plan \
 		-var="env=$(ENV)" \
 		-var="project=$(PROJECT)" \
 		-var="description=$(DESCRIPTION)" \
 		-var="aws_region=$(AWS_REGION)" \
 		-var="artifacts_bucket=$(S3_BUCKET)" \
-		-state="$(PROJECT)-$(ENV)-$(AWS_REGION).tfstate" \
-		-out="$(PROJECT)-$(ENV)-$(AWS_REGION).tfplan" \
 		./tf/
 
-tf-deploy:
-	terraform apply \
-		-state="$(PROJECT)-$(ENV)-$(AWS_REGION).tfstate" \
-			$(PROJECT)-$(ENV)-$(AWS_REGION).tfplan
+tf-apply:
+	@terraform apply \
+		-var="env=$(ENV)" \
+		-var="project=$(PROJECT)" \
+		-var="description=$(DESCRIPTION)" \
+		-compact-warnings ./tf/
 
 tf-destroy:
 	@read -p "Are you sure that you want to destroy: '$(PROJECT)-$(ENV)-$(AWS_REGION)'? [yes/N]: " sure && [ $${sure:-N} = 'yes' ]
-	terraform destroy ./tf/
+	@terraform destroy ./tf/
 
 ################################################
 
@@ -83,7 +87,7 @@ cfn-package: clean
 	mkdir -p build
 	cp -R ./python/*.py ./build/
 	@echo "zipping python code, uploading to S3 bucket, and transforming template"
-	aws cloudformation package \
+	@aws cloudformation package \
 			--template-file sam.yml \
 			--s3-bucket ${S3_BUCKET} \
 			--output-template-file build/template-lambda.yml
@@ -92,7 +96,7 @@ cfn-package: clean
 	aws s3 cp build/template-lambda.yml 's3://${S3_BUCKET}/template/template-lambda.yml'
 
 cfn-deploy:
-	aws cloudformation deploy \
+	@aws cloudformation deploy \
 			--template-file build/template-lambda.yml \
 			--region ${AWS_REGION} \
 			--stack-name "${PROJECT}-${ENV}" \
