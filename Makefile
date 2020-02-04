@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help tf-plan tf-package tf-deploy cfn-package cfn-deploy layer clean clean-layer cleaning artifacts
+.PHONY: help artifacts tf-init tf-validate tf-plan tf-package tf-apply cfn-package cfn-deploy cfn-layer clean clean-layer cleaning
 
 ################ Project #######################
 PROJECT ?= my-yolo-project-123
@@ -41,14 +41,23 @@ artifacts:
 	@aws s3api put-bucket-versioning --bucket $(S3_BUCKET) --versioning-configuration Status=Enabled
 ################################################
 
+################### venv #######################
+venv: clean-venv
+	cd python && \
+	python3 -m venv venv && \
+	source ./venv/bin/activate && \
+	pip3 install --disable-pip-version-check -r ./requirements.txt -t ../build/
+################################################
+
 ################ Terraform #####################
 tf-package: clean
 	@echo "Consolidating python code in ./build"
 	mkdir -p build
+	make venv
 	cp -R ./python/*.py ./build/
 
 	@echo "zipping python code"
-	zip -j ./tf/function.zip ./build/*
+	cd build ; zip -r ../tf/function.zip *
 
 tf-init:
 	@terraform init \
@@ -115,6 +124,9 @@ layer: clean-layer
 ################################################
 
 ################ Cleaning ######################
+clean-venv: clean
+	rm -rf ./python/venv
+
 clean-layer:
 	@rm -fr layer/
 	@rm -fr dist/
