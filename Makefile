@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help artifacts tf-init tf-validate tf-plan tf-package tf-apply cfn-package cfn-deploy cfn-layer clean clean-layer cleaning
+.PHONY: help artifacts tf-init tf-validate tf-plan tf-package tf-apply cfn-package cfn-deploy clean
 
 ################ Project #######################
 PROJECT ?= my-yolo-project-123
@@ -25,10 +25,7 @@ help:
 	@echo "	tf-destroy - delete all previously created infrastructure using Terraform"
 	@echo "	cfn-package - prepare the package for CloudFormation"
 	@echo "	cfn-deploy - deploy the IaC using CloudFormation"
-	@echo "	cfn-layer - prepare the layer for CloudFormation"
 	@echo "	clean - clean the build folder"
-	@echo "	clean-layer - clean the layer folder"
-	@echo "	cleaning - clean build and layer folders"
 
 
 ################ Artifacts #####################
@@ -116,31 +113,11 @@ cfn-deploy:
 			--capabilities CAPABILITY_IAM \
 			--no-fail-on-empty-changeset
 
-layer: clean-layer
-	pip3 install \
-			--isolated \
-			--disable-pip-version-check \
-			-Ur requirements.txt -t ./layer/
 ################################################
 
 ################ Cleaning ######################
 clean-venv: clean
 	rm -rf ./python/venv
-
-clean-layer:
-	@rm -fr layer/
-	@rm -fr dist/
-	@rm -fr htmlcov/
-	@rm -fr site/
-	@rm -fr .eggs/
-	@rm -fr .tox/
-	@find . -name '*.egg-info' -exec rm -fr {} +
-	@find . -name '.DS_Store' -exec rm -fr {} +
-	@find . -name '*.egg' -exec rm -f {} +
-	@find . -name '*.pyc' -exec rm -f {} +
-	@find . -name '*.pyo' -exec rm -f {} +
-	@find . -name '*~' -exec rm -f {} +
-	@find . -name '__pycache__' -exec rm -fr {} +
 
 clean:
 	@rm -fr build/
@@ -161,5 +138,4 @@ clean:
 	@find . -name '*~' -exec rm -f {} +
 	@find . -name '__pycache__' -exec rm -fr {} +
 
-cleaning: clean clean-layer
 ################################################

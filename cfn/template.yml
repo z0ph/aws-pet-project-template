@@ -30,9 +30,7 @@ Resources:
       Runtime: python3.7
       CodeUri: ./build
       MemorySize: 128
-      Timeout: 30
-      Layers:
-        - !Ref boto3layer
+      Timeout: 3
       Policies:
         - AWSLambdaExecute # Managed Policy
         - Version: '2012-10-17' # Policy Document
@@ -54,15 +52,3 @@ Resources:
       Tags:
         Project: !Sub ${project}
 
-  boto3layer:
-    Type: 'AWS::Serverless::LayerVersion'
-    Properties:
-      LayerName: boto3-layer
-      Description: boto3 layer
-      ContentUri: ./layer
-      CompatibleRuntimes:
-        - python2.7
-        - python3.6
-        - python3.7
-      LicenseInfo: 'Available under the MIT-0 license.'
-      RetentionPolicy: Retain
